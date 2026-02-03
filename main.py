@@ -25,18 +25,24 @@ def generate_article(product_info):
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-flash-latest')
     print(f"Generating: {product_info['name']}...")
+    
+    # ダブルクォーテーションをエスケープしてエラーを防ぐ
+    safe_title = f"{product_info['name']} - {product_info['tagline']}".replace('"', '\\"')
+    safe_desc = product_info['description'].replace('"', '\\"')
+
     prompt = f"""
     ---
-    title: "{product_info['name']} - {product_info['tagline']}"
+    title: "{safe_title}"
     date: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S+09:00')}
     draft: false
-    description: "{product_info['description'][:100]}..."
+    description: "{safe_desc[:150]}..."
     ---
     # {product_info['name']}
     {product_info['description']}
     
     [公式サイトへ]({product_info['website']})
-    (魅力的な日本語紹介記事をMarkdownで書いてください)
+    
+    (以下、このツールの魅力を紹介するブログ記事を日本語でMarkdown形式で書いてください)
     """
     try:
         response = model.generate_content(prompt)
