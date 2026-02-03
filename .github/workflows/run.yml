@@ -1,8 +1,8 @@
-Money Maker & Deploy
+name: Daily Money Maker & Deploy
 
 on:
   schedule:
-    - cron: '0 23 * * *' # 日本時間 朝8時
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: true # テーマのためにサブモジュールを許可
+          submodules: true
           fetch-depth: 0
 
       - name: Setup Python
@@ -37,15 +37,18 @@ jobs:
         with:
           hugo-version: 'latest'
 
-      # テーマをその場でダウンロードする力技
       - name: Install Theme
         run: |
-          git submodule add [https://github.com/theNewDynamic/gohugo-theme-ananke.git](https://github.com/theNewDynamic/gohugo-theme-ananke.git) themes/ananke || true
+          git submodule add https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke || true
           git submodule update --init --recursive
 
       - name: Build Site
         run: hugo --minify
 
-      - name: Commit & Push (Save Data)
+      - name: Commit & Push
         run: |
-          
+          git config --global user.name 'MoneyBot'
+          git config --global user.email 'bot@example.com'
+          git pull
+          git add content/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "New Article" && git push)
