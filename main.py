@@ -1,22 +1,17 @@
 import requests
 import google.generativeai as genai
-import json
-from datetime import datetime
 import os
+from datetime import datetime
 
 # ==========================================
-# 設定エリア (環境変数からキーを読み込む安全仕様)
+# 設定エリア
 # ==========================================
-# ローカル実行時にエラーにならないよう、ない場合は空文字を入れる安全設計
 PH_ACCESS_TOKEN = os.getenv("PH_ACCESS_TOKEN", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# キーが読み込めていない場合に警告を出す
-if not PH_ACCESS_TOKEN or not GEMINI_API_KEY:
-    print("【警告】APIキーが環境変数に見つかりません。")
-    print("GitHub Actionsの設定、またはローカルの環境変数を確認してください。")
-    # ここで処理を止めないと、後の処理でエラーになる
-    # ただし、ローカルテスト用に直書きしたい誘惑には勝ってください
+# ディレクトリ作成関数
+def setup_directories():
+    os.makedirs("content/posts", exist_ok=True)
 
 # ==========================================
 # 1. Product Huntからデータ取得
@@ -24,7 +19,6 @@ if not PH_ACCESS_TOKEN or not GEMINI_API_KEY:
 def get_top_product():
     url = "https://api.producthunt.com/v2/api/graphql"
     headers = {"Authorization": f"Bearer {PH_ACCESS_TOKEN}"}
-    
     query = """
     {
       posts(first: 1, order: VOTES) {
@@ -41,84 +35,69 @@ def get_top_product():
       }
     }
     """
-    
-    print("Fetching data from Product Hunt...")
     try:
         response = requests.post(url, json={'query': query}, headers=headers)
-        response.raise_for_status() # エラーならここで止める
-        
-        data = response.json()
-        product = data['data']['posts']['edges'][0]['node']
-        return product
+        response.raise_for_status()
+        return response.json()['data']['posts']['edges'][0]['node']
     except Exception as e:
-        print(f"データ取得エラー: {e}")
-        # 詳細なエラーレスポンスを表示（デバッグ用）
-        if 'response' in locals():
-            print(response.text)
+        print(f"Error fetching data: {e}")
         return None
 
 # ==========================================
-# 2. Geminiで記事生成
+# 2. Geminiで記事生成 (Hugo対応版)
 # ==========================================
 def generate_article(product_info):
-    # APIキーの余計な空白を削除して設定
-    clean_key = GEMINI_API_KEY.strip()
-    genai.configure(api_key=clean_key)
-    
-    # ★ここでモデルを指定！ リストにあった最強コスパモデルを使用
+    genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-flash-latest')
     
     print(f"Generating article for: {product_info['name']}...")
 
+    # Hugo用のFrontmatter（記事の管理情報）を含めたプロンプト
     prompt = f"""
-    あなたはプロのガジェット/SaaS紹介ブロガーです。
-    以下のツールについて、日本の読者が「今すぐ使いたい！」と思うような魅力的なブログ記事をMarkdown形式で書いてください。
-
-    【ツール情報】
-    - 名前: {product_info['name']}
-    - キャッチコピー: {product_info['tagline']}
-    - 説明: {product_info['description']}
-    - 人気度: {product_info['votesCount']} votes
-    - URL: {product_info['website']}
-
-    【記事構成】
-    1. タイトル: 30文字以内、キャッチーに。
-    2. 導入: 読者の悩みに寄り添う。
-    3. 概要: 何ができるツールか簡潔に。
-    4. 使い方/メリット: 具体的な利用シーンを想像させる。
-    5. まとめ: 公式サイトへの誘導。
+    あなたは人気テックブロガーです。以下のツールを紹介する記事を書いてください。
+    出力は以下の形式（Frontmatter付きMarkdown）を厳守してください。
     
-    ※出力はMarkdownのみにしてください。
+    ---
+    title: "{product_info['name']} - {product_info['tagline']}"
+    date: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S+09:00')}
+    draft: false
+    description: "{product_info['description'][:100]}..."
+    tags: ["ProductHunt", "AI", "Tools"]
+    ---
+
+    # {product_info['name']} とは？
+    （以下、本文をMarkdownで記述。見出しは ## から始めてください。
+    読者が「使ってみたい！」と思うようなメリット、使い方、まとめを書いてください。
+    最後に公式サイトへのリンク {product_info['website']} を目立つように配置してください。）
     """
 
     try:
         response = model.generate_content(prompt)
-        return response.text
+        # 余計な ```markdown 等の記号を削除するクリーニング
+        text = response.text.replace("```markdown", "").replace("```", "").strip()
+        return text
     except Exception as e:
-        print(f"AI生成エラー: {e}")
+        print(f"AI Error: {e}")
         return None
 
 # ==========================================
 # メイン処理
 # ==========================================
 if __name__ == "__main__":
-    # 1. データ取得
+    if not PH_ACCESS_TOKEN or not GEMINI_API_KEY:
+        print("API Keys not found.")
+        exit(1)
+
+    setup_directories()
     product = get_top_product()
     
     if product:
-        # 2. 記事生成
-        article_content = generate_article(product)
-        
-        if article_content:
-            # 3. ファイル保存
-            # ファイル名に日付と製品名を入れる
+        content = generate_article(product)
+        if content:
+            # ファイル名を安全にする
             safe_name = "".join([c for c in product['name'] if c.isalnum()])
-            filename = f"article_{datetime.now().strftime('%Y%m%d')}_{safe_name}.md"
+            filename = f"content/posts/{datetime.now().strftime('%Y-%m-%d')}-{safe_name}.md"
             
             with open(filename, "w", encoding="utf-8") as f:
-                f.write(article_content)
-                
-            print(f"\nSUCCESS! 記事生成完了: {filename}")
-            print("=========================================")
-            print("不労所得の第一歩目が完成しました。")
-            print("フォルダを確認してください。")
+                f.write(content)
+            print(f"Saved: {filename}")
