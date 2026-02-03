@@ -15,7 +15,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: true
           fetch-depth: 0
 
       - name: Setup Python
@@ -37,15 +36,15 @@ jobs:
         with:
           hugo-version: 'latest'
 
-      - name: Install Theme
+      # ▼▼▼ ここを変更！強制的にテーマをダウンロードする力技 ▼▼▼
+      - name: Install Theme (Force)
         run: |
-          git submodule add https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke || true
-          git submodule update --init --recursive
+          rm -rf themes
+          git clone https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke
 
       - name: Build Site
         run: hugo --minify
 
-      # ▼▼▼ ここが重要！git pullが入った最強版 ▼▼▼
       - name: Commit & Push
         run: |
           git config --global user.name 'MoneyBot'
