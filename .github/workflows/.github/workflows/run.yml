@@ -1,0 +1,41 @@
+name: Daily Money Maker
+
+on:
+  schedule:
+    # 毎日 日本時間の朝8時 (UTC 23:00) に実行
+    - cron: '0 23 * * *'
+  workflow_dispatch: # 手動で「今すぐ実行」ボタンを押せるようにする
+
+permissions:
+  contents: write # 生成した記事をリポジトリに保存する権限
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Pythonのセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: ライブラリのインストール
+        run: |
+          pip install requests google-generativeai
+
+      - name: スクリプト実行 (不労所得生成)
+        env:
+          # ここでSecretsに登録した鍵を読み込む
+          PH_ACCESS_TOKEN: ${{ secrets.PH_ACCESS_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
+
+      - name: 記事を保存 (Commit & Push)
+        run: |
+          git config --global user.name 'MoneyBot'
+          git config --global user.email 'bot@example.com'
+          git add *.md
+          # 変更があった場合のみコミット・プッシュする
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-generated article" && git push)
