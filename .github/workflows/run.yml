@@ -35,8 +35,8 @@ jobs:
         uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
+          extended: true # 👈 これが今回の修正ポイント！
 
-      # ▼▼▼ ここを変更！強制的にテーマをダウンロードする力技 ▼▼▼
       - name: Install Theme (Force)
         run: |
           rm -rf themes
