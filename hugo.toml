@@ -1,7 +1,7 @@
-baseURL = '[https://money-bot.vercel.app/](https://money-bot.vercel.app/)' # 仮のURL
+baseURL = 'https://money-bot.vercel.app/'
 languageCode = 'ja'
 title = 'AI Tools Hunter'
-theme = 'ananke' # 超有名なシンプルテーマ
+theme = 'ananke'
 
 [params]
-  description = "毎日自動更新！世界の最新AIツールを紹介するサイト"
+  description = "AI Tools Review"
