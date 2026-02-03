@@ -1,41 +1,58 @@
-name: Daily Money Maker
+name: Daily Money Maker & Deploy
 
 on:
   schedule:
-    # 毎日 日本時間の朝8時 (UTC 23:00) に実行
-    - cron: '0 23 * * *'
-  workflow_dispatch: # 手動で「今すぐ実行」ボタンを押せるようにする
+    - cron: '0 23 * * *' # 日本時間 朝8時
+  workflow_dispatch:
 
 permissions:
-  contents: write # 生成した記事をリポジトリに保存する権限
+  contents: write
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: リポジトリのチェックアウト
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true # テーマのためにサブモジュールを許可
+          fetch-depth: 0
 
-      - name: Pythonのセットアップ
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: ライブラリのインストール
-        run: |
-          pip install requests google-generativeai
+      - name: Install Libraries
+        run: pip install requests google-generativeai
 
-      - name: スクリプト実行 (不労所得生成)
+      - name: Generate Content
         env:
-          # ここでSecretsに登録した鍵を読み込む
           PH_ACCESS_TOKEN: ${{ secrets.PH_ACCESS_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
-      - name: 記事を保存 (Commit & Push)
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: 'latest'
+
+      # テーマをその場でダウンロードする力技
+      - name: Install Theme
+        run: |
+          git submodule add [https://github.com/theNewDynamic/gohugo-theme-ananke.git](https://github.com/theNewDynamic/gohugo-theme-ananke.git) themes/ananke || true
+          git submodule update --init --recursive
+
+      - name: Build Site
+        run: hugo --minify
+
+      - name: Commit & Push (Save Data)
         run: |
           git config --global user.name 'MoneyBot'
           git config --global user.email 'bot@example.com'
-          git add *.md
-          # 変更があった場合のみコミット・プッシュする
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-generated article" && git push)
+          git add content/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "New Article" && git push)
+
+      # ここでVercelへデプロイするための準備（publicフォルダをArtifactsにする）
+      # だが、一番簡単なのはVercel側からGitHubを見に行くことなので、
+      # ここでは「記事生成と保存」までを完璧に行う。
